@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagnostic Enseigne Cassée — Atelier Gambetta</title>
+<meta name="description" content="Votre enseigne est cassée ou ne s'allume plus ? Faites votre auto-diagnostic en 2 minutes. Atelier Gambetta, expert en réparation d'enseignes à Paris depuis 1975.">
+<meta name="keywords" content="enseigne cassée, enseigne qui ne s'allume plus, réparation enseigne, enseigne lumineuse cassée, néon cassé, réparation enseigne Paris">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23224761'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' fill='%23E8B130' font-size='14' font-weight='bold' font-family='sans-serif'>AG</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Readex Pro',sans-serif;background:#F4F4F4;color:#222221;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#D1D5DB;border-radius:3px}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes checkIn{from{transform:scale(0.4);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes ticketIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+input,select,textarea{font-family:'Readex Pro',sans-serif}
+@media(max-width:639px){
+  .hide-mobile{display:none!important}
+  .client-cards{flex-direction:column!important}
+  .grid-2{grid-template-columns:1fr!important}
+  .stats-row{gap:10px!important}
+  .stat-divider{height:24px!important}
+  .stat-value{font-size:17px!important}
+  .stat-label{font-size:8px!important}
+  .progress-header{display:none!important}
+  .progress-mobile{display:block!important}
+}
+@media(min-width:640px){
+  .progress-mobile{display:none!important}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef} = React;
+  
+/* ══ TEMP API ══ */
+const API_URL = "https://api2.oriyaka.com";
+
+/* ══ API FUNCTIONS ══ */
+const submitDiagnosticToAPI = async (diagnosticData) => {
+  try {
+    const response = await fetch(`${API_URL}/diagnostics/submit`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(diagnosticData),
+    });
+    if(!response.ok) throw new Error(`API error: ${response.status}`);
+    return await response.json();
+  } catch(error) {
+    console.error("Submission error:", error);
+    throw error;
+  }
+};
+
+const uploadFilesAPI = async (diagnosticId, files) => {
+  try {
+    for(const f of files) {
+      const formData = new FormData();
+      formData.append("file", f.file);
+      formData.append("diagnostic_id", diagnosticId);
+      const response = await fetch(`${API_URL}/uploads?diagnostic_id=${diagnosticId}`, {
+        method: "POST",
+        body: formData,
+      });
+      if(!response.ok) throw new Error(`Upload error: ${response.status}`);
+    }
+  } catch(error) {
+    console.error("File upload error:", error);
+    throw error;
+  }
+};
+
+const downloadDevisAPI = async (diagnosticId) => {
+  try {
+    console.log("=== Starting downloadDevisAPI ===");
+    console.log("Diagnostic ID:", diagnosticId);
+    
+    if (!diagnosticId) {
+      console.error("No diagnostic ID provided");
+      alert("Erreur: Aucun diagnostic trouvé. Veuillez soumettre le formulaire d'abord.");
+      return;
+    }
+    
+    const url = `${API_URL}/quotes/generate?diagnostic_id=${diagnosticId}`;
+    console.log("Fetching from:", url);
+    
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Accept": "application/pdf"
+      }
+    });
+    
+    console.log("Response status:", response.status);
+    console.log("Response headers:", response.headers);
+    
+    if(!response.ok) {
+      const errorText = await response.text();
+      console.error("Error response:", errorText);
+      throw new Error(`Erreur ${response.status}: ${errorText}`);
+    }
+    
+    // Get the blob and create a download link
+    const blob = await response.blob();
+    console.log("Blob size:", blob.size, "bytes");
+    
+    const url_obj = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url_obj;
+    link.download = `devis_${diagnosticId}_${new Date().toISOString().split('T')[0]}.pdf`;
+    link.style.display = 'none';
+    
+    document.body.appendChild(link);
+    console.log("Triggering download...");
+    link.click();
+    
+    // Cleanup
+    setTimeout(() => {
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url_obj);
+    }, 100);
+    
+    console.log("=== downloadDevisAPI completed successfully ===");
+  } catch(error) {
+    console.error("=== Devis download error ===");
+    console.error(error);
+    alert(`Erreur: ${error.message}`);
+  }
+};
+
+/* ══ DESIGN TOKENS ══ */
+const T = {
+  blue:"#224761", blueDark:"#1A3550", blueMid:"#2E5F82", blueLight:"#EAF1F6",
+  amber:"#E8B130", amberHover:"#F5C84A",
+  bg:"#F4F4F4", black:"#222221",
+  red:"#C83E3F", redLight:"#FEF2F2",
+  white:"#FFFFFF", green:"#22A06B", greenLight:"#ECFDF5",
+  border:"#E2E6EA", gray3:"#D1D5DB", gray4:"#9CA3AF", gray5:"#6B7280", gray6:"#4B5563",
+  shadow:"0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
+  shadowMd:"0 4px 16px rgba(34,71,97,0.10)",
+  shadowLg:"0 8px 32px rgba(34,71,97,0.12)",
+};
+
+/* ══ DECISION TREE ══ */
+const TREE = {
+  lumineux_symptome:{id:"lumineux_symptome",question:"Quel est votre problème ?",subtitle:"Décrivez ce que vous observez sur votre enseigne",type:"choice",choices:[
+    {id:"eteint",label:"Elle est complètement / en partie éteinte",sublabel:"Une ou plusieurs zones sans lumière",icon:"off",next:"lumineux_etendue"},
+    {id:"clignote",label:"Elle clignote ou vacille",sublabel:"Lumière instable, flashs",icon:"zap",next:"lumineux_cligno"},
+    {id:"faible",label:"La lumière est plus faible",sublabel:"Moins lumineuse qu'avant",icon:"sun-dim",next:"lumineux_zone"},
+  ]},
+  lumineux_etendue:{id:"lumineux_etendue",question:"Quelle partie ne s'allume plus ?",subtitle:"Soyez le plus précis possible",type:"choice",choices:[
+    {id:"tout",label:"Toute l'enseigne",sublabel:"Rien ne s'allume du tout",icon:"layout",next:"upload"},
+    {id:"plusieurs",label:"Plusieurs lettres",sublabel:"Une partie de l'enseigne",icon:"type",next:"lumineux_repartition"},
+    {id:"une",label:"Une seule lettre",sublabel:"Uniquement un caractère",icon:"letter",next:"upload"},
+    {id:"segment",label:"Une partie d'une lettre",sublabel:"Un segment, un côté",icon:"minus-square",next:"upload"},
+  ]},
+  lumineux_repartition:{id:"lumineux_repartition",question:"Comment sont réparties les lettres éteintes ?",subtitle:"Cela aide à identifier l'origine de la panne",type:"choice",choices:[
+    {id:"groupees",label:"Elles sont groupées",sublabel:"Les lettres éteintes sont côte à côte",icon:"columns",next:"upload"},
+    {id:"eparpillees",label:"Elles sont éparpillées",sublabel:"Les lettres éteintes sont dispersées",icon:"grid",next:"upload"},
+  ]},
+  lumineux_cligno:{id:"lumineux_cligno",question:"Le clignotement est…",subtitle:"",type:"choice",choices:[
+    {id:"permanent",label:"Permanent en continu",sublabel:"Depuis le début, ça ne s'arrête pas",icon:"repeat",next:"upload"},
+    {id:"intermittent",label:"Par intermittence",sublabel:"Parfois ça marche, parfois non",icon:"shuffle",next:"upload"},
+    {id:"demarrage",label:"Au démarrage uniquement",sublabel:"Ça clignote puis ça s'arrête",icon:"play",next:"upload"},
+  ]},
+  lumineux_zone:{id:"lumineux_zone",question:"C'est sur quelle zone ?",subtitle:"",type:"choice",choices:[
+    {id:"tout",label:"Toute l'enseigne",sublabel:"Problème généralisé",icon:"layout",next:"upload"},
+    {id:"partielle",label:"Une zone précise",sublabel:"Localisé sur une partie",icon:"map-pin",next:"upload"},
+  ]},
+  upload:{id:"upload",type:"upload"},
+};
+const TOTAL_STEPS = 5;
+
+/* ══ ICON SYSTEM ══ */
+const IC = {
+  phone:   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.36 14a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.11 3h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.09 10.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 17z"/></svg>,
+  arrowR:  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>,
+  arrowL:  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>,
+  lock:    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
+  check:   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+  checkLg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+  upload:  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
+  home:    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+  warn:    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>,
+  info:    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
+  userChk: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>,
+  userPlus:<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>,
+  zap:     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+  search:  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>,
+  send:    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
+  star:    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+  video:   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>,
+  x:       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>,
+  image:   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>,
+  building:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>,
+  download:<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+};
+
+/* ══ CHOICE ICON MAP ══ */
+const choiceIcon = (key, size=20, color="currentColor") => {
+  const s = {width:size,height:size,flexShrink:0};
+  const p = {fill:"none",stroke:color,strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round"};
+  switch(key){
+    case "off":       return <svg style={s} viewBox="0 0 24 24" {...p}><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>;
+    case "zap":       return <svg style={s} viewBox="0 0 24 24" {...p}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+    case "sun-dim":   return <svg style={s} viewBox="0 0 24 24" {...p}><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>;
+    case "layout":    return <svg style={s} viewBox="0 0 24 24" {...p}><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>;
+    case "type":      return <svg style={s} viewBox="0 0 24 24" {...p}><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>;
+    case "letter":    return <svg style={s} viewBox="0 0 24 24" {...p}><line x1="4" y1="20" x2="10" y2="4"/><line x1="20" y1="20" x2="14" y2="4"/><line x1="6.9" y1="14" x2="17.1" y2="14"/></svg>;
+    case "minus-square": return <svg style={s} viewBox="0 0 24 24" {...p}><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>;
+    case "columns":   return <svg style={s} viewBox="0 0 24 24" {...p}><rect x="3" y="3" width="8" height="18" rx="1"/><rect x="13" y="3" width="8" height="18" rx="1"/></svg>;
+    case "grid":      return <svg style={s} viewBox="0 0 24 24" {...p}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>;
+    case "repeat":    return <svg style={s} viewBox="0 0 24 24" {...p}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>;
+    case "shuffle":   return <svg style={s} viewBox="0 0 24 24" {...p}><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>;
+    case "play":      return <svg style={s} viewBox="0 0 24 24" {...p}><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>;
+    case "map-pin":   return <svg style={s} viewBox="0 0 24 24" {...p}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>;
+    default: return <svg style={s} viewBox="0 0 24 24" {...p}><circle cx="12" cy="12" r="1"/></svg>;
+  }
+};
+
+/* ══ PROGRESS BAR ══ */
+const ProgressBar = ({progress, label}) => (
+  <div style={{width:"100%"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+      <span style={{fontSize:11,fontWeight:600,color:T.blue,letterSpacing:"0.06em",textTransform:"uppercase"}}>{label}</span>
+      <span style={{fontSize:13,fontWeight:600,color:T.blue}}>{Math.round(progress)}%</span>
+    </div>
+    <div style={{height:4,background:T.border,borderRadius:4,overflow:"hidden"}}>
+      <div style={{height:"100%",width:`${progress}%`,background:`linear-gradient(90deg,${T.blue},${T.amber})`,borderRadius:4,transition:"width 0.5s cubic-bezier(0.4,0,0.2,1)",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",inset:0,background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent)",backgroundSize:"200% 100%",animation:"shimmer 2s infinite"}}/>
+      </div>
+    </div>
+  </div>
+);
+
+/* ══ CHOICE CARD ══ */
+const ChoiceCard = ({choice, onClick, selected}) => {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={()=>setHov(true)}
+      onMouseLeave={()=>setHov(false)}
+      style={{
+        background: selected ? T.blueLight : T.white,
+        border:`1.5px solid ${selected ? T.blue : hov ? "#9CA3AF" : T.border}`,
+        borderRadius:12, padding:"14px 16px", cursor:"pointer",
+        textAlign:"left", display:"flex", alignItems:"center", gap:14,
+        width:"100%", transition:"border-color 0.15s, background 0.15s",
+        boxShadow: selected ? "none" : T.shadow,
+      }}
+    >
+      <div style={{flexShrink:0,color:selected?T.blue:T.gray5,transition:"color 0.15s"}}>
+        {choiceIcon(choice.icon, 20, selected ? T.blue : T.gray5)}
+      </div>
+      <div style={{flex:1}}>
+        <div style={{fontSize:14,fontWeight:600,color:selected?T.blue:T.black,lineHeight:1.35,transition:"color 0.15s"}}>{choice.label}</div>
+        {choice.sublabel && <div style={{fontSize:12,color:T.gray4,marginTop:2,fontWeight:400}}>{choice.sublabel}</div>}
+      </div>
+      <div style={{width:18,height:18,borderRadius:"50%",border:`1.5px solid ${selected?T.blue:T.border}`,background:selected?T.blue:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}>
+        {selected && <div style={{color:T.white,lineHeight:0}}>{IC.check}</div>}
+      </div>
+    </button>
+  );
+};
+
+/* ══ SCREEN: LANDING ══ */
+const Landing = ({onStart}) => {
+  const stats = [
+    {v:"50 ans", l:"D'EXPERTISE"},
+    {v:"1000+",  l:"ENSEIGNES/AN"},
+    {v:"4.8",    l:"196 AVIS GOOGLE", star:true},
+    {v:"48h",    l:"DÉLAI DE RAPPEL"},
+  ];
+  return (
+    <div style={{height:"100vh",overflow:"hidden",display:"flex",flexDirection:"column",background:T.white}}>
+      <style>{`
+        /* ── Landing layout ── */
+        .l-split{display:flex;height:calc(100vh - 64px);overflow:hidden}
+
+        /* Left column */
+        .l-left{
+          flex:0 0 50%;background:#224761;box-sizing:border-box;
+          display:flex;flex-direction:column;
+          padding:52px 56px 44px;
+          animation:fadeUp 0.4s ease both;
+        }
+        /* Centre le contenu (H1→CTA) verticalement, stats collées en bas */
+        .l-content{
+          flex:1;display:flex;flex-direction:column;justify-content:center;
+        }
+        .l-h1{
+          font-size:96px;font-weight:700;
+          color:#fff;line-height:1.0;letter-spacing:-0.025em;
+          margin:0 0 20px;
+        }
+        .l-h1 .amber{color:#E8B130}
+        .l-badge{
+          display:inline-block;width:fit-content;
+          border:1.5px solid rgba(255,255,255,0.4);border-radius:50px;
+          padding:6px 16px;margin-bottom:24px;
+          font-size:13px;font-weight:400;color:rgba(255,255,255,0.9);
+          font-family:'Readex Pro',sans-serif;line-height:1.4;
+        }
+        .l-sub{
+          font-size:17px;font-weight:400;color:rgba(255,255,255,0.82);
+          line-height:1.65;max-width:400px;margin:0 0 36px;
+        }
+        .l-cta{
+          display:inline-block;background:transparent;color:#fff;
+          border:2px solid rgba(255,255,255,0.55);border-radius:50px;
+          padding:15px 28px;font-size:13px;font-weight:700;
+          letter-spacing:0.07em;text-transform:uppercase;
+          font-family:'Readex Pro',sans-serif;cursor:pointer;
+          transition:background 0.15s,border-color 0.15s;line-height:1;
+        }
+        .l-cta:hover{background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,1)}
+
+        /* Stats */
+        .l-stats{display:flex;align-items:flex-start;padding-top:36px;flex-shrink:0}
+        .l-stat{
+          padding-right:24px;margin-right:24px;
+          border-right:1px solid rgba(255,255,255,0.18);
+        }
+        .l-stat:last-child{border-right:none;padding-right:0;margin-right:0}
+        .l-sv{
+          font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.01em;
+          display:flex;align-items:center;gap:5px;line-height:1.1;
+        }
+        .l-sl{
+          font-size:10px;font-weight:400;color:rgba(255,255,255,0.55);
+          letter-spacing:0.06em;margin-top:4px;text-transform:uppercase;
+        }
+
+        /* Right column */
+        .l-right{flex:0 0 50%;overflow:hidden}
+        .l-right img{width:100%;height:100%;object-fit:cover;object-position:center top;display:block}
+
+        /* Mobile */
+        @media(max-width:640px){
+          .l-split{flex-direction:column;height:auto;overflow:visible}
+          .l-left{flex:none;padding:36px 24px 32px;min-height:calc(100vh - 64px)}
+          .l-right{display:none}
+          .l-h1{font-size:38px}
+          .l-sub{font-size:15px;max-width:none}
+          .l-stats{flex-wrap:wrap;gap:12px 0}
+          .l-stat{padding-right:16px;margin-right:16px}
+        }
+      `}</style>
+
+      {/* ── HEADER ── */}
+      <header style={{
+        height:64,padding:"0 40px",flexShrink:0,
+        display:"flex",justifyContent:"space-between",alignItems:"center",
+        borderBottom:`1px solid ${T.border}`,background:T.white,zIndex:50,
+      }}>
+        <img src="atelier gambetta logo.png" alt="Atelier Gambetta"
+          style={{height:34,display:"block",objectFit:"contain"}} />
+        <a href="tel:0148404422" style={{
+          display:"flex",alignItems:"center",gap:8,
+          textDecoration:"none",color:T.blue,fontSize:15,fontWeight:600,
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.blue} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.36 14a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.11 3h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.09 10.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 17z"/>
+          </svg>
+          <span>01 48 40 44 22</span>
+        </a>
+      </header>
+
+      {/* ── SPLIT ── */}
+      <div className="l-split">
+
+        {/* ── LEFT ── */}
+        <div className="l-left">
+          <div className="l-content">
+            <h1 className="l-h1">
+              Votre enseigne<br/>est <span className="amber">cassée&nbsp;?</span>
+            </h1>
+            <div className="l-badge">Diagnostic gratuit - 2 minutes</div>
+            <p className="l-sub">
+              Identifiez la panne en 2 minutes et recevez une estimation de réparation.<br/>
+              Nos techniciens vous rappellent sous 48h&nbsp;!
+            </p>
+            <div>
+              <button className="l-cta" onClick={onStart}>
+                Diagnostiquer mon enseigne gratuitement&nbsp;→
+              </button>
+            </div>
+          </div>
+
+          {/* ── STATS ── */}
+          <div className="l-stats">
+            {stats.map((s,i)=>(
+              <div key={i} className="l-stat">
+                <div className="l-sv">
+                  {s.v}
+                  {s.star && <span style={{color:"#E8B130",lineHeight:1}}>{IC.star}</span>}
+                </div>
+                <div className="l-sl">{s.l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── RIGHT ── */}
+        <div className="l-right">
+          <img src="Installateur_upscayl_2x_upscayl-standard-4x.png" alt="Technicien Atelier Gambetta" />
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+/* ══ SCREEN: CLIENT TYPE ══ */
+const ClientTypeScreen = ({onSelect}) => {
+  const [vis, setVis] = useState(false);
+  useEffect(()=>{ setTimeout(()=>setVis(true),60) },[]);
+
+  const Card = ({type, icon, title, subtitle, desc}) => {
+    const [hov, setHov] = useState(false);
+    const [sel, setSel] = useState(false);
+    return (
+      <button
+        onClick={()=>{ setSel(true); setTimeout(()=>onSelect(type), 120); }}
+        onMouseEnter={()=>setHov(true)}
+        onMouseLeave={()=>setHov(false)}
+        style={{
+          background: sel ? T.blueLight : T.white,
+          border:`1.5px solid ${sel ? T.blue : hov ? "rgba(34,71,97,0.4)" : T.border}`,
+          borderRadius:14, padding:"28px 24px", cursor:"pointer",
+          textAlign:"center", flex:"1 1 220px", display:"flex",
+          flexDirection:"column", alignItems:"center", gap:16,
+          transition:"border-color 0.15s, background 0.15s",
+          boxShadow: T.shadow,
+        }}
+      >
+        <div style={{width:52,height:52,borderRadius:12,background:T.blueLight,display:"flex",alignItems:"center",justifyContent:"center",color:T.blue}}>
+          {icon}
+        </div>
+        <div>
+          <div style={{fontSize:16,fontWeight:700,color:T.blue,marginBottom:6,lineHeight:1.25}}>{title}</div>
+          <div style={{fontSize:13,color:T.gray5,lineHeight:1.55,fontWeight:400}}>{subtitle}</div>
+          {desc && <div style={{fontSize:12,color:T.gray4,marginTop:6,fontWeight:400}}>{desc}</div>}
+        </div>
+        <div style={{
+          display:"inline-flex",alignItems:"center",gap:6,
+          padding:"8px 20px",borderRadius:50,fontSize:13,fontWeight:600,
+          background:T.blue,color:T.white,
+          transition:"background 0.15s",
+        }}>
+          Continuer {IC.arrowR}
+        </div>
+      </button>
+    );
+  };
+
+  return (
+    <div style={{opacity:vis?1:0,transition:"opacity 0.3s ease",animation:vis?"fadeUp 0.35s ease both":"none"}}>
+      <div style={{marginBottom:28}}>
+        <h2 style={{fontSize:22,fontWeight:700,color:T.blue,marginBottom:8}}>Êtes-vous déjà client ?</h2>
+        <p style={{fontSize:14,color:T.gray5,fontWeight:400,lineHeight:1.6}}>Votre réponse nous permet d'adapter le formulaire de contact.</p>
+      </div>
+      <div className="client-cards" style={{display:"flex",gap:14}}>
+        <Card
+          type={true}
+          icon={IC.userChk}
+          title="Oui, je suis client Atelier Gambetta"
+          subtitle="Nous avons déjà travaillé ensemble. Formulaire simplifié."
+          desc="Identification rapide"
+        />
+        <Card
+          type={false}
+          icon={IC.userPlus}
+          title="Non, je suis nouveau client"
+          subtitle="Quelques informations pour vous contacter et envoyer votre devis."
+          desc="2 champs · 30 secondes"
+        />
+      </div>
+    </div>
+  );
+};
+
+/* ══ SCREEN: PRE-QUESTIONS (mini-form before diagnostic) ══ */
+const PreQuestionsScreen = ({existingClient, onNext}) => {
+  const [vis, setVis] = useState(false);
+  const [societe, setSociete] = useState("");
+  const [telephone, setTelephone] = useState("");
+  const [entreprise, setEntreprise] = useState("");
+  useEffect(()=>{ setTimeout(()=>setVis(true),60); },[]);
+
+  const isValid = existingClient
+    ? entreprise.trim() !== ""
+    : societe.trim() !== "" && telephone.trim() !== "";
+
+  const handleSubmit = () => {
+    if(!isValid) return;
+    if(existingClient) onNext({entreprise});
+    else onNext({societe, telephone});
+  };
+
+  const inputStyle = (hasVal) => ({
+    width:"100%", padding:"12px 14px", borderRadius:8,
+    border:`1.5px solid ${T.border}`, fontSize:14, color:T.black,
+    outline:"none", transition:"border-color 0.15s", background:T.white,
+    fontWeight:400, fontFamily:"inherit",
+  });
+
+  return (
+    <div style={{opacity:vis?1:0,transform:vis?"translateY(0)":"translateY(12px)",transition:"opacity 0.3s ease,transform 0.3s ease"}}>
+      <div style={{marginBottom:24}}>
+        <h2 style={{fontSize:20,fontWeight:700,color:T.blue,marginBottom:8,lineHeight:1.3}}>
+          {existingClient ? "Quel est le nom de votre commerce ?" : "Pour commencer, quelques infos rapides"}
+        </h2>
+        <p style={{fontSize:13,color:T.gray5,fontWeight:400,lineHeight:1.6}}>
+          {existingClient
+            ? "Cela nous permet de retrouver votre dossier dans notre base."
+            : "Pour vous rappeler si vous quittez le diagnostic."}
+        </p>
+      </div>
+
+      {existingClient ? (
+        <div style={{marginBottom:20}}>
+          <label style={{fontSize:11,fontWeight:600,color:T.blue,display:"block",marginBottom:6,letterSpacing:"0.05em",textTransform:"uppercase"}}>
+            Nom de l'entreprise <span style={{color:T.red}}>*</span>
+          </label>
+          <input
+            type="text"
+            value={entreprise}
+            onChange={e=>setEntreprise(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&handleSubmit()}
+            placeholder="Mon Commerce"
+            style={inputStyle(!!entreprise)}
+            onFocus={e=>e.target.style.borderColor=T.blue}
+            onBlur={e=>e.target.style.borderColor=T.border}
+            autoFocus
+          />
+        </div>
+      ) : (<>
+        <div style={{marginBottom:16}}>
+          <label style={{fontSize:11,fontWeight:600,color:T.blue,display:"block",marginBottom:6,letterSpacing:"0.05em",textTransform:"uppercase"}}>
+            Nom de la société <span style={{color:T.red}}>*</span>
+          </label>
+          <input
+            type="text"
+            value={societe}
+            onChange={e=>setSociete(e.target.value)}
+            placeholder="Mon Commerce SARL"
+            style={inputStyle(!!societe)}
+            onFocus={e=>e.target.style.borderColor=T.blue}
+            onBlur={e=>e.target.style.borderColor=T.border}
+            autoFocus
+          />
+        </div>
+        <div style={{marginBottom:20}}>
+          <label style={{fontSize:11,fontWeight:600,color:T.blue,display:"block",marginBottom:6,letterSpacing:"0.05em",textTransform:"uppercase"}}>
+            Numéro de téléphone <span style={{color:T.red}}>*</span>
+          </label>
+          <input
+            type="tel"
+            value={telephone}
+            onChange={e=>setTelephone(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&handleSubmit()}
+            placeholder="06 12 34 56 78"
+            style={inputStyle(!!telephone)}
+            onFocus={e=>e.target.style.borderColor=T.blue}
+            onBlur={e=>e.target.style.borderColor=T.border}
+          />
+        </div>
+      </>)}
+
+      <button
+        onClick={handleSubmit}
+        disabled={!isValid}
+        style={{
+          background: isValid ? T.blue : T.gray3,
+          color: T.white, border:"none", borderRadius:50,
+          padding:"0 32px", height:52, fontSize:14, fontWeight:700,
+          cursor: isValid ? "pointer" : "default",
+          width:"100%", display:"flex", alignItems:"center",
+          justifyContent:"center", gap:9,
+          transition:"background 0.15s",
+        }}
+        onMouseEnter={e=>{ if(isValid) e.currentTarget.style.background=T.blueDark; }}
+        onMouseLeave={e=>{ if(isValid) e.currentTarget.style.background=T.blue; }}
+      >
+        Commencer le diagnostic {IC.arrowR}
+      </button>
+      {!isValid && (
+        <p style={{fontSize:12,color:T.gray4,textAlign:"center",marginTop:10,fontWeight:400}}>
+          {existingClient ? "Renseignez le nom de votre commerce pour continuer" : "Renseignez les 2 champs pour continuer"}
+        </p>
+      )}
+    </div>
+  );
+};
+
+/* ══ SCREEN: QUESTION ══ */
+const QuestionStep = ({stepKey, onAnswer}) => {
+  const [sel, setSel] = useState(null);
+  const [vis, setVis] = useState(false);
+  useEffect(()=>{ setVis(false); setSel(null); setTimeout(()=>setVis(true),60); },[stepKey]);
+  const step = TREE[stepKey];
+  if(!step || step.type!=="choice") return null;
+  const handle = (choice) => { setSel(choice.id); setTimeout(()=>onAnswer(choice), 260); };
+  return (
+    <div style={{opacity:vis?1:0,transform:vis?"translateY(0)":"translateY(12px)",transition:"opacity 0.3s ease,transform 0.3s ease"}}>
+      <h2 style={{fontSize:20,fontWeight:700,color:T.blue,marginBottom:6,lineHeight:1.3}}>{step.question}</h2>
+      {step.subtitle && <p style={{fontSize:13,color:T.gray5,marginBottom:20,fontWeight:400}}>{step.subtitle}</p>}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {step.choices.map(c=><ChoiceCard key={c.id} choice={c} selected={sel===c.id} onClick={()=>handle(c)} />)}
+      </div>
+    </div>
+  );
+};
+
+/* ══ SCREEN: UPLOAD ══ */
+const UploadStep = ({onNext, isUrgent}) => {
+  const [vis, setVis] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [drag, setDrag] = useState(false);
+  const inputRef = useRef();
+  useEffect(()=>{ setTimeout(()=>setVis(true),60); },[]);
+  const addFiles = (fl) => {
+    const arr = Array.from(fl).map(f=>({file:f,name:f.name,preview:f.type.startsWith("image/")?URL.createObjectURL(f):null}));
+    setFiles(p=>[...p,...arr]);
+  };
+  return (
+    <div style={{opacity:vis?1:0,transform:vis?"translateY(0)":"translateY(12px)",transition:"opacity 0.3s ease,transform 0.3s ease"}}>
+      {isUrgent && (
+        <div style={{background:T.redLight,border:`1px solid ${T.red}44`,borderRadius:10,padding:"12px 14px",marginBottom:18,display:"flex",gap:10,alignItems:"center"}}>
+          <span style={{color:T.red,flexShrink:0}}>{IC.warn}</span>
+          <div><div style={{fontSize:13,fontWeight:600,color:T.red}}>Situation urgente détectée</div><div style={{fontSize:12,color:T.gray5}}>Un technicien vous contactera en priorité.</div></div>
+        </div>
+      )}
+      <h2 style={{fontSize:20,fontWeight:700,color:T.blue,marginBottom:6}}>Montrez-nous le problème</h2>
+      <p style={{fontSize:13,color:T.gray5,marginBottom:20,lineHeight:1.65,fontWeight:400}}>
+        Une photo aide nos experts à évaluer la panne avant de se déplacer. <span style={{color:T.gray4}}>(optionnel)</span>
+      </p>
+      <div
+        onDragOver={e=>{e.preventDefault();setDrag(true)}}
+        onDragLeave={()=>setDrag(false)}
+        onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}}
+        onClick={()=>inputRef.current?.click()}
+        style={{
+          border:`1.5px dashed ${drag?T.blue:T.border}`,
+          borderRadius:12,padding:"36px 24px",textAlign:"center",
+          background:drag?T.blueLight:T.bg,cursor:"pointer",
+          transition:"border-color 0.15s, background 0.15s",marginBottom:14,
+        }}
+      >
+        <div style={{color:T.gray4,display:"flex",justifyContent:"center",marginBottom:10}}>{IC.upload}</div>
+        <div style={{fontSize:14,fontWeight:600,color:T.blue,marginBottom:4}}>{drag?"Déposez ici":"Glisser-déposer une photo ou vidéo"}</div>
+        <div style={{fontSize:12,color:T.gray4}}>ou <span style={{color:T.blue,fontWeight:600,cursor:"pointer"}}>cliquez pour choisir</span> — JPG, PNG, MP4</div>
+        <input ref={inputRef} type="file" multiple accept="image/*,video/*" style={{display:"none"}} onChange={e=>addFiles(e.target.files)} />
+      </div>
+      {files.length > 0 && (
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+          {files.map((f,i)=>(
+            <div key={i} style={{position:"relative",width:68,height:68,borderRadius:8,overflow:"hidden",border:`1px solid ${T.border}`}}>
+              {f.preview ? <img src={f.preview} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                : <div style={{width:"100%",height:"100%",background:T.blueLight,display:"flex",alignItems:"center",justifyContent:"center",color:T.blue}}>{IC.video}</div>}
+              <button onClick={e=>{e.stopPropagation();setFiles(p=>p.filter((_,j)=>j!==i))}} style={{position:"absolute",top:3,right:3,width:18,height:18,borderRadius:"50%",background:"rgba(0,0,0,0.5)",color:"white",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{IC.x}</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button onClick={()=>onNext({files})} style={{
+        background:T.blue, color:T.white, border:"none", borderRadius:50,
+        padding:"0 32px", height:52, fontSize:14, fontWeight:700,
+        cursor:"pointer", width:"100%", display:"flex", alignItems:"center",
+        justifyContent:"center", gap:9, transition:"background 0.15s",
+      }}
+      onMouseEnter={e=>e.currentTarget.style.background=T.blueDark}
+      onMouseLeave={e=>e.currentTarget.style.background=T.blue}
+      >
+        {files.length > 0 ? `Continuer avec ${files.length} fichier${files.length>1?"s":""}` : "Continuer sans photo"}
+        {IC.arrowR}
+      </button>
+      <p style={{fontSize:12,color:T.gray4,textAlign:"center",marginTop:10,display:"flex",alignItems:"center",gap:5,justifyContent:"center"}}>
+        {IC.lock} Upload optionnel — continuez sans si vous préférez
+      </p>
+    </div>
+  );
+};
+
+/* ══ SCREEN: INFOS PERSO (nouveau client — email + adresse facturation/projet) ══ */
+const InfosPerso = ({onNext, submitting}) => {
+  const [vis, setVis] = useState(false);
+  const [data, setData] = useState({email:"",adresseRue:"",adresseCP:"",adresseVille:"",memeAdresse:true,projetRue:"",projetCP:"",projetVille:""});
+  const [errors, setErrors] = useState({});
+  useEffect(()=>{ setTimeout(()=>setVis(true),60); },[]);
+  const upd = (k,v) => setData(d=>({...d,[k]:v}));
+
+  const fieldStyle = (key) => ({
+    width:"100%", padding:"11px 13px", borderRadius:8,
+    border:`1.5px solid ${errors[key]?T.red:T.border}`,
+    fontSize:14, color:T.black, outline:"none",
+    transition:"border-color 0.15s", background:T.white,
+    fontWeight:400, fontFamily:"inherit",
+  });
+
+  const Label = ({text, required}) => (
+    <label style={{fontSize:11,fontWeight:600,color:T.blue,display:"block",marginBottom:5,letterSpacing:"0.05em",textTransform:"uppercase"}}>
+      {text}{required && <span style={{color:T.red}}> *</span>}
+    </label>
+  );
+
+  const submit = () => {
+    const e = {};
+    if(!data.email.trim()) e.email = true;
+    if(!data.adresseRue.trim()) e.adresseRue = true;
+    if(!data.adresseCP.trim()) e.adresseCP = true;
+    if(!data.adresseVille.trim()) e.adresseVille = true;
+    if(Object.keys(e).length > 0){ setErrors(e); return; }
+    onNext(data);
+  };
+
+  return (
+    <div style={{opacity:vis?1:0,transition:"opacity 0.3s ease"}}>
+      <div style={{marginBottom:24}}>
+        <div style={{display:"inline-flex",alignItems:"center",gap:6,background:T.blueLight,borderRadius:6,padding:"4px 10px",marginBottom:10}}>
+          <span style={{fontSize:11,fontWeight:600,color:T.blue,letterSpacing:"0.04em"}}>NOUVEAU CLIENT</span>
+        </div>
+        <h2 style={{fontSize:20,fontWeight:700,color:T.blue,marginBottom:6}}>Plus qu'une étape !</h2>
+        <p style={{fontSize:13,color:T.gray5,fontWeight:400,lineHeight:1.6}}>Pour recevoir votre devis et retrouver votre dossier.</p>
+      </div>
+
+      {/* Email */}
+      <div style={{marginBottom:14}}>
+        <Label text="Email professionnel" required />
+        <input type="email" value={data.email} onChange={e=>upd("email",e.target.value)}
+          placeholder="marie@moncommerce.fr" style={fieldStyle("email")}
+          onFocus={e=>e.target.style.borderColor=errors.email?T.red:T.blue}
+          onBlur={e=>e.target.style.borderColor=errors.email?T.red:T.border}
+        />
+      </div>
+
+      {/* Adresse facturation */}
+      <div style={{marginBottom:14}}>
+        <Label text="Adresse de facturation" required />
+        <input value={data.adresseRue} onChange={e=>upd("adresseRue",e.target.value)}
+          placeholder="12 rue du Commerce"
+          style={{...fieldStyle("adresseRue"),marginBottom:8}}
+          onFocus={e=>e.target.style.borderColor=errors.adresseRue?T.red:T.blue}
+          onBlur={e=>e.target.style.borderColor=errors.adresseRue?T.red:T.border}
+        />
+        <div style={{display:"grid",gridTemplateColumns:"100px 1fr",gap:8}}>
+          <input value={data.adresseCP} onChange={e=>upd("adresseCP",e.target.value)}
+            placeholder="75011" style={fieldStyle("adresseCP")}
+            onFocus={e=>e.target.style.borderColor=errors.adresseCP?T.red:T.blue}
+            onBlur={e=>e.target.style.borderColor=errors.adresseCP?T.red:T.border}
+          />
+          <input value={data.adresseVille} onChange={e=>upd("adresseVille",e.target.value)}
+            placeholder="Paris" style={fieldStyle("adresseVille")}
+            onFocus={e=>e.target.style.borderColor=errors.adresseVille?T.red:T.blue}
+            onBlur={e=>e.target.style.borderColor=errors.adresseVille?T.red:T.border}
+          />
+        </div>
+        {(errors.adresseRue||errors.adresseCP||errors.adresseVille) && <div style={{fontSize:11,color:T.red,marginTop:3}}>Adresse complète requise</div>}
+      </div>
+
+      {/* Même adresse checkbox */}
+      <label style={{display:"flex",alignItems:"center",gap:9,marginBottom:16,cursor:"pointer"}} onClick={()=>upd("memeAdresse",!data.memeAdresse)}>
+        <div style={{width:17,height:17,borderRadius:4,border:`1.5px solid ${data.memeAdresse?T.blue:T.border}`,background:data.memeAdresse?T.blue:T.white,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s",color:T.white}}>
+          {data.memeAdresse && IC.check}
+        </div>
+        <span style={{fontSize:13,color:T.gray5,fontWeight:400}}>Adresse du projet identique à la facturation</span>
+      </label>
+
+      {/* Adresse projet si différente */}
+      {!data.memeAdresse && (
+        <div style={{marginBottom:16}}>
+          <Label text="Adresse du projet" />
+          <input value={data.projetRue} onChange={e=>upd("projetRue",e.target.value)}
+            placeholder="Adresse de l'enseigne"
+            style={{...fieldStyle("projetRue"),marginBottom:8}}
+          />
+          <div style={{display:"grid",gridTemplateColumns:"100px 1fr",gap:8}}>
+            <input value={data.projetCP} onChange={e=>upd("projetCP",e.target.value)}
+              placeholder="75011" style={fieldStyle("projetCP")} />
+            <input value={data.projetVille} onChange={e=>upd("projetVille",e.target.value)}
+              placeholder="Paris" style={fieldStyle("projetVille")} />
+          </div>
+        </div>
+      )}
+
+      <button onClick={submit} disabled={submitting} style={{
+        background:submitting?T.gray3:T.blue, color:T.white, border:"none", borderRadius:50,
+        padding:"0 32px", height:52, fontSize:14, fontWeight:700,
+        cursor:submitting?"default":"pointer", width:"100%", marginTop:8,
+        display:"flex", alignItems:"center", justifyContent:"center", gap:9,
+        transition:"background 0.15s", opacity:submitting?0.6:1,
+      }}
+      onMouseEnter={e=>{if(!submitting)e.currentTarget.style.background=T.blueDark}}
+      onMouseLeave={e=>{if(!submitting)e.currentTarget.style.background=T.blue}}
+      >
+        {submitting ? "Envoi en cours..." : <>
+          {IC.send} Envoyer mon diagnostic
+        </>}
+      </button>
+      <p style={{fontSize:12,color:T.gray4,textAlign:"center",marginTop:10,display:"flex",alignItems:"center",gap:5,justifyContent:"center"}}>
+        {IC.lock} Données confidentielles
+      </p>
+    </div>
+  );
+};
+
+/* ══ SCREEN: CONFIRMATION ══ */
+const Confirmation = ({diagnosticSummary, infos, isUrgent, existingClient, latestDiagnosticId}) => {
+  const [vis, setVis] = useState(false);
+  useEffect(()=>{
+    setTimeout(()=>setVis(true),80);
+    const emailData = {
+      to: infos?.telephone || "N/A",
+      subject:"Votre diagnostic Atelier Gambetta",
+      body:[
+        `Bonjour ${infos?.prenom || infos?.entreprise || infos?.societe || ""},`,
+        "","Merci pour votre diagnostic Atelier Gambetta.","",
+        "Récapitulatif :",...(diagnosticSummary||[]).map(d=>`  • ${d.question} → ${d.answer}`),"",
+        "Nos experts vous rappellent sous 48h — 01 48 40 44 22","","Atelier Gambetta",
+      ].join("\n"),
+    };
+    console.log("[EmailJS simulation]", emailData);
+  },[]);
+
+  const name = infos?.prenom || infos?.entreprise || infos?.societe || "";
+
+  return (
+    <div style={{textAlign:"center",opacity:vis?1:0,transform:vis?"translateY(0)":"translateY(14px)",transition:"opacity 0.5s ease,transform 0.5s ease"}}>
+      <div style={{width:64,height:64,borderRadius:"50%",background:T.greenLight,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",animation:"checkIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both",color:T.green}}>
+        {IC.checkLg}
+      </div>
+      <h2 style={{fontSize:22,fontWeight:700,color:T.blue,marginBottom:8}}>Diagnostic envoyé !</h2>
+      <p style={{fontSize:14,color:T.gray5,maxWidth:400,margin:"0 auto",lineHeight:1.7,marginBottom:24,fontWeight:400}}>
+        {name && <><strong style={{color:T.blue,fontWeight:600}}>{name}</strong>, merci. </>}
+        Nos experts analysent votre demande et vous recontactent sous <strong style={{color:T.amber,fontWeight:600}}>48h</strong>.
+      </p>
+
+      {/* Récap */}
+      {diagnosticSummary && diagnosticSummary.length > 0 && (
+        <div style={{background:T.bg,borderRadius:10,padding:16,marginBottom:16,textAlign:"left",border:`1px solid ${T.border}`}}>
+          <div style={{fontSize:10,fontWeight:600,color:T.gray4,marginBottom:10,letterSpacing:"0.08em"}}>RÉCAPITULATIF</div>
+          {diagnosticSummary.map((item,i)=>(
+            <div key={i} style={{display:"flex",gap:10,padding:"6px 0",borderBottom:i<diagnosticSummary.length-1?`1px solid ${T.border}`:"none"}}>
+              <span style={{color:T.blue,flexShrink:0,marginTop:1}}>{choiceIcon(item.icon||"dot",16,T.blue)}</span>
+              <div>
+                <div style={{fontSize:11,color:T.gray4,fontWeight:400}}>{item.question}</div>
+                <div style={{fontSize:13,fontWeight:600,color:T.blue}}>{item.answer}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isUrgent && (
+        <div style={{background:T.redLight,border:`1px solid ${T.red}33`,borderRadius:10,padding:"11px 14px",marginBottom:16,display:"flex",gap:9,alignItems:"center",textAlign:"left"}}>
+          <span style={{color:T.red,flexShrink:0}}>{IC.warn}</span>
+          <div>
+            <div style={{fontSize:13,fontWeight:600,color:T.red}}>Situation urgente — Rappel prioritaire</div>
+            <div style={{fontSize:12,color:T.gray5,marginTop:1,fontWeight:400}}>Si besoin immédiat : <strong style={{color:T.blue}}>01 48 40 44 22</strong></div>
+          </div>
+        </div>
+      )}
+
+      <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
+        <a href="https://www.ateliergambetta.com" style={{display:"inline-flex",alignItems:"center",gap:7,background:T.blue,color:T.white,borderRadius:50,padding:"0 22px",height:44,fontSize:13,fontWeight:600,textDecoration:"none"}}>
+          {IC.home} Retour au site
+        </a>
+        <button type="button" onClick={(e) => { e.preventDefault(); console.log("Button clicked. DiagnosticID:", latestDiagnosticId); downloadDevisAPI(latestDiagnosticId); }} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,background:T.amber,color:T.blue,border:"none",borderRadius:50,padding:"0 22px",height:44,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Readex Pro',sans-serif",transition:"all 0.2s ease"}}>
+          {IC.download} Devis PDF
+        </button>
+        <a href="tel:0148404422" style={{display:"inline-flex",alignItems:"center",gap:7,background:T.white,color:T.blue,border:`1.5px solid ${T.blue}`,borderRadius:50,padding:"0 22px",height:44,fontSize:13,fontWeight:600,textDecoration:"none"}}>
+          {IC.phone} Appeler l'atelier
+        </a>
+      </div>
+    </div>
+  );
+};
+
+/* ══ MAIN APP ══ */
+function App() {
+  const [screen, setScreen] = useState("landing");
+  const [existingClient, setExistingClient] = useState(null);
+  const [preInfos, setPreInfos] = useState({});
+  const [infos, setInfos] = useState({});
+  const [history, setHistory] = useState([]);
+  const [currentStep, setCurrentStep] = useState("lumineux_symptome");
+  const [diagnosticSummary, setDiagnosticSummary] = useState([]);
+  const [isUrgent, setIsUrgent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [latestDiagnosticId, setLatestDiagnosticId] = useState(null);
+
+  const getProgress = () => {
+    if(screen==="landing") return 0;
+    if(screen==="clientType") return 10;
+    if(screen==="preQuestions") return 18;
+    if(screen==="confirm") return 100;
+    if(screen==="infos") return 90;
+    if(screen==="upload") return 76;
+    return Math.min(72, 22 + history.length*(48/TOTAL_STEPS));
+  };
+  const getLabel = () => ({
+    clientType:"Identification",
+    preQuestions:"Identification",
+    diagnostic:"Diagnostic en cours",
+    upload:"Photo",
+    infos:"Vos coordonnées",
+    confirm:"Terminé",
+  }[screen]||"");
+
+  const handleAnswer = (choice) => {
+    const step = TREE[currentStep]; if(!step) return;
+    setDiagnosticSummary(p=>[...p,{question:step.question,answer:choice.label,icon:choice.icon}]);
+    setHistory(p=>[...p,{stepKey:currentStep,choiceId:choice.id}]);
+    if(choice.urgent) setIsUrgent(true);
+    const nk = choice.next;
+    if(!nk || nk==="upload") setScreen("upload"); else setCurrentStep(nk);
+  };
+
+  const handleBack = () => {
+    if(screen==="infos"){ setScreen("upload"); return; }
+    if(screen==="upload"){
+      if(history.length>0){
+        const l=history[history.length-1].stepKey;
+        setHistory(h=>h.slice(0,-1));
+        setDiagnosticSummary(s=>s.slice(0,-1));
+        setCurrentStep(l);
+        setScreen("diagnostic");
+      } else {
+        setCurrentStep("lumineux_symptome");
+        setScreen("preQuestions");
+      }
+      return;
+    }
+    if(screen==="diagnostic"){
+      if(history.length===0){ setCurrentStep("lumineux_symptome"); setScreen("preQuestions"); }
+      else{ const prev=history[history.length-1].stepKey; setHistory(h=>h.slice(0,-1)); setDiagnosticSummary(s=>s.slice(0,-1)); setCurrentStep(prev); }
+      return;
+    }
+    if(screen==="preQuestions"){ setScreen("landing"); return; }
+  };
+
+if(screen==="landing") return <Landing onStart={()=>{
+        setExistingClient(false);
+        setPreInfos({});
+        setScreen("preQuestions");
+      }} />;
+
+  const showBack = screen !== "confirm";
+  const showProgress = screen !== "confirm";
+
+  return (
+    <div style={{minHeight:"100vh",background:T.bg,display:"flex",flexDirection:"column"}}>
+      {/* Header */}
+      <header style={{background:T.white,borderBottom:`1px solid ${T.border}`,padding:"0 24px",height:58,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50,boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
+        <img src="atelier gambetta logo.png" alt="Atelier Gambetta" style={{height:32,display:"block",objectFit:"contain"}} />
+        {showProgress && (
+          <div className="progress-header" style={{flex:1,maxWidth:440,margin:"0 24px"}}>
+            <ProgressBar progress={getProgress()} label={getLabel()} />
+          </div>
+        )}
+        <a href="tel:0148404422" style={{display:"flex",alignItems:"center",gap:7,textDecoration:"none",color:T.blue,fontSize:13,fontWeight:600}}>
+          {IC.phone}<span className="hide-mobile">01 48 40 44 22</span>
+        </a>
+      </header>
+
+      {/* Content */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"32px 16px 56px"}}>
+
+        {/* Mobile progress bar — above card */}
+        {showProgress && (
+          <div className="progress-mobile" style={{display:"none",width:"100%",maxWidth:580,marginBottom:16,padding:"0 4px"}}>
+            <ProgressBar progress={getProgress()} label={getLabel()} />
+          </div>
+        )}
+
+        <div style={{width:"100%",maxWidth:580,background:T.white,borderRadius:16,boxShadow:T.shadowMd,padding:"clamp(20px,5vw,40px)"}}>
+          {showBack && (
+            <button onClick={handleBack} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",cursor:"pointer",fontSize:13,color:T.gray4,fontWeight:600,marginBottom:22,padding:0,transition:"color 0.15s"}}
+              onMouseEnter={e=>e.currentTarget.style.color=T.blue}
+              onMouseLeave={e=>e.currentTarget.style.color=T.gray4}
+            >{IC.arrowL} Retour</button>
+          )}
+
+          {screen==="preQuestions" && (
+            <PreQuestionsScreen
+              existingClient={existingClient}
+              onNext={(data)=>{
+                setPreInfos(data);
+                setCurrentStep("lumineux_symptome");
+                setScreen("diagnostic");
+              }}
+            />
+          )}
+
+          {screen==="diagnostic" && (
+            <QuestionStep stepKey={currentStep} onAnswer={handleAnswer} />
+          )}
+
+          {screen==="upload" && (
+            <UploadStep isUrgent={isUrgent} onNext={(uploadData)=>{
+              setUploadedFiles(uploadData.files || []);
+              if(existingClient){
+                const allInfos = preInfos;
+                setInfos(allInfos);
+                
+                // Submit to API
+                setSubmitting(true);
+                const diagnosticPayload = {
+                  company_name: allInfos.entreprise || "Unknown",
+                  phone_number: allInfos.telephone || "",
+                  email: "",
+                  address_street: "",
+                  address_postal_code: "",
+                  address_city: "",
+                  project_address_street: "",
+                  project_address_postal_code: "",
+                  project_address_city: "",
+                  is_existing_client: true,
+                  is_urgent: isUrgent,
+                  answers: diagnosticSummary,
+                };
+                
+                submitDiagnosticToAPI(diagnosticPayload)
+                  .then(result => {
+                    setLatestDiagnosticId(result.diagnostic_id);
+                    if(uploadData.files && uploadData.files.length > 0) {
+                      uploadFilesAPI(result.diagnostic_id, uploadData.files)
+                        .then(() => { setSubmitting(false); setScreen("confirm"); })
+                        .catch(err => { console.error(err); setSubmitting(false); setScreen("confirm"); });
+                    } else {
+                      setSubmitting(false);
+                      setScreen("confirm");
+                    }
+                  })
+                  .catch(err => { console.error(err); setSubmitting(false); setScreen("confirm"); });
+              } else {
+                setScreen("infos");
+              }
+            }} />
+          )}
+
+          {screen==="infos" && (
+            <InfosPerso submitting={submitting} onNext={(d)=>{
+              const allInfos = {...preInfos, ...d};
+              setInfos(allInfos);
+              
+              // Submit to API
+              setSubmitting(true);
+              const diagnosticPayload = {
+                company_name: allInfos.societe || allInfos.entreprise || "Unknown",
+                phone_number: allInfos.telephone || "",
+                email: allInfos.email || "",
+                address_street: allInfos.adresseRue || "",
+                address_postal_code: allInfos.adresseCP || "",
+                address_city: allInfos.adresseVille || "",
+                project_address_street: allInfos.memeAdresse ? "" : (allInfos.projetRue || ""),
+                project_address_postal_code: allInfos.memeAdresse ? "" : (allInfos.projetCP || ""),
+                project_address_city: allInfos.memeAdresse ? "" : (allInfos.projetVille || ""),
+                is_existing_client: existingClient,
+                is_urgent: isUrgent,
+                answers: diagnosticSummary,
+              };
+              
+              submitDiagnosticToAPI(diagnosticPayload)
+                .then(result => {
+                  setLatestDiagnosticId(result.diagnostic_id);
+                  if(uploadedFiles.length > 0) {
+                    uploadFilesAPI(result.diagnostic_id, uploadedFiles)
+                      .then(() => { setSubmitting(false); setScreen("confirm"); })
+                      .catch(err => { console.error(err); setSubmitting(false); setScreen("confirm"); });
+                  } else {
+                    setSubmitting(false);
+                    setScreen("confirm");
+                  }
+                })
+                .catch(err => { console.error(err); setSubmitting(false); setScreen("confirm"); });
+            }} />
+          )}
+
+          {screen==="confirm" && (
+            <Confirmation
+              diagnosticSummary={diagnosticSummary}
+              infos={infos}
+              isUrgent={isUrgent}
+              existingClient={existingClient}
+              latestDiagnosticId={latestDiagnosticId}
+            />
+          )}
+        </div>
+      </div>
+
+      <footer style={{padding:"12px 28px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+        <span style={{fontSize:11,color:T.gray4,fontWeight:400}}>© Atelier Gambetta — Fabricant d'enseignes depuis 1975</span>
+        <span style={{fontSize:11,color:T.gray4,fontWeight:400}}>Propulsé par <strong style={{color:T.blue,fontWeight:600}}>Kyne Agency</strong></span>
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
