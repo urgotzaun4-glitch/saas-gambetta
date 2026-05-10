@@ -417,7 +417,7 @@
             const loadTemplates = async () => {
                 setLoading(true);
                 try {
-                    const res = await fetch('http://localhost:8021/admin/templates');
+                    const res = await fetch('https://api2.oriyaka.com/admin/templates');
                     const data = await res.json();
                     setTemplates(data);
                     if (data.length > 0 && !selectedTemplate) {
@@ -431,7 +431,7 @@
 
             const loadSteps = async (templateId) => {
                 try {
-                    const res = await fetch(`http://localhost:8021/admin/templates/${templateId}/steps`);
+                    const res = await fetch(`https://api2.oriyaka.com/admin/templates/${templateId}/steps`);
                     const data = await res.json();
                     setSteps(data);
                 } catch (err) {
@@ -450,7 +450,7 @@
                         description: templateForm.description,
                         is_active: true  // Make new templates active by default
                     });
-                    const res = await fetch(`http://localhost:8021/admin/templates?${params}`, {
+                    const res = await fetch(`https://api2.oriyaka.com/admin/templates?${params}`, {
                         method: 'POST'
                     });
                     if (res.ok) {
@@ -475,7 +475,7 @@
                         description: templateForm.description,
                         is_active: templateForm.is_active
                     });
-                    const res = await fetch(`http://localhost:8021/admin/templates/${editingItem.id}?${params}`, {
+                    const res = await fetch(`https://api2.oriyaka.com/admin/templates/${editingItem.id}?${params}`, {
                         method: 'PUT'
                     });
                     if (res.ok) {
@@ -492,7 +492,7 @@
             const deleteTemplate = async (id) => {
                 if (!confirm('Êtes-vous sûr ? Cette action supprimera aussi toutes les étapes et réponses.')) return;
                 try {
-                    const res = await fetch(`http://localhost:8021/admin/templates/${id}`, {
+                    const res = await fetch(`https://api2.oriyaka.com/admin/templates/${id}`, {
                         method: 'DELETE'
                     });
                     if (res.ok) {
@@ -523,7 +523,7 @@
                         is_required: stepForm.is_required,
                         can_upload_files: stepForm.can_upload_files
                     });
-                    const res = await fetch(`http://localhost:8021/admin/templates/${selectedTemplate.id}/steps?${params}`, {
+                    const res = await fetch(`https://api2.oriyaka.com/admin/templates/${selectedTemplate.id}/steps?${params}`, {
                         method: 'POST'
                     });
                     if (res.ok) {
@@ -544,7 +544,7 @@
                 if (!confirm('Êtes-vous sûr ? Cette action supprimera aussi toutes les réponses.')) return;
                 if (!selectedTemplate) return;
                 try {
-                    const res = await fetch(`http://localhost:8021/admin/templates/${selectedTemplate.id}/steps/${stepId}`, {
+                    const res = await fetch(`https://api2.oriyaka.com/admin/templates/${selectedTemplate.id}/steps/${stepId}`, {
                         method: 'DELETE'
                     });
                     if (res.ok) {
@@ -576,7 +576,7 @@
                         indicates_urgency: choiceForm.indicates_urgency
                     });
                     const res = await fetch(
-                        `http://localhost:8021/admin/templates/${selectedTemplate.id}/steps/${selectedStep.id}/choices?${params}`,
+                        `https://api2.oriyaka.com/admin/templates/${selectedTemplate.id}/steps/${selectedStep.id}/choices?${params}`,
                         {
                             method: 'POST'
                         }
@@ -600,7 +600,7 @@
                 if (!selectedTemplate || !selectedStep) return;
                 try {
                     const res = await fetch(
-                        `http://localhost:8021/admin/templates/${selectedTemplate.id}/steps/${selectedStep.id}/choices/${choiceId}`,
+                        `https://api2.oriyaka.com/admin/templates/${selectedTemplate.id}/steps/${selectedStep.id}/choices/${choiceId}`,
                         { method: 'DELETE' }
                     );
                     if (res.ok) {
