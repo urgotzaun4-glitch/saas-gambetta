@@ -358,6 +358,9 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        // Use relative URL to work on both localhost and production
+        const API_URL = "https://api2.oriyaka.com";
+        
         // Design tokens
         const T = {
             colors: {
@@ -381,6 +384,8 @@
             const [showNewStepForm, setShowNewStepForm] = React.useState(false);
             const [showNewChoiceForm, setShowNewChoiceForm] = React.useState(false);
             const [showEditTemplateForm, setShowEditTemplateForm] = React.useState(false);
+            const [showEditStepForm, setShowEditStepForm] = React.useState(false);
+            const [showEditChoiceForm, setShowEditChoiceForm] = React.useState(false);
             const [editingItem, setEditingItem] = React.useState(null);
 
             // Form states
@@ -417,7 +422,7 @@
             const loadTemplates = async () => {
                 setLoading(true);
                 try {
-                    const res = await fetch('https://api2.oriyaka.com/admin/templates');
+                    const res = await fetch(`${API_URL}/admin/templates`);
                     const data = await res.json();
                     setTemplates(data);
                     if (data.length > 0 && !selectedTemplate) {
@@ -431,11 +436,74 @@
 
             const loadSteps = async (templateId) => {
                 try {
-                    const res = await fetch(`https://api2.oriyaka.com/admin/templates/${templateId}/steps`);
+                    const res = await fetch(`${API_URL}/admin/templates/${templateId}/steps`);
                     const data = await res.json();
                     setSteps(data);
                 } catch (err) {
                     showMsg('Erreur lors du chargement des étapes', 'error');
+                }
+            };
+
+            const updateStep = async () => {
+                if (!editingItem || editingItem.type !== 'step') return;
+                if (!stepForm.step_key.trim() || !stepForm.question_text.trim()) {
+                    showMsg('La clé et la question sont requises', 'error');
+                    return;
+                }
+                try {
+                    const params = new URLSearchParams({
+                        step_key: stepForm.step_key,
+                        question_text: stepForm.question_text,
+                        question_subtitle: stepForm.question_subtitle,
+                        step_order: stepForm.step_order,
+                        step_type: stepForm.step_type,
+                    });
+                    const res = await fetch(
+                        `${API_URL}/admin/templates/${selectedTemplate.id}/steps/${editingItem.id}?${params}`,
+                        { method: 'PUT' }
+                    );
+                    if (res.ok) {
+                        await loadSteps(selectedTemplate.id);
+                        setEditingItem(null);
+                        setShowEditStepForm(false);
+                        showMsg('Étape mise à jour');
+                    } else {
+                        const error = await res.json();
+                        showMsg(`Erreur: ${error.detail || res.statusText}`, 'error');
+                    }
+                } catch (err) {
+                    showMsg('Erreur lors de la mise à jour', 'error');
+                }
+            };
+
+            const updateChoice = async () => {
+                if (!editingItem || editingItem.type !== 'choice') return;
+                if (!choiceForm.choice_label.trim()) {
+                    showMsg('Le label est requis', 'error');
+                    return;
+                }
+                try {
+                    const params = new URLSearchParams({
+                        choice_label: choiceForm.choice_label,
+                        choice_sublabel: choiceForm.choice_sublabel,
+                        choice_order: choiceForm.choice_order,
+                        indicates_urgency: choiceForm.indicates_urgency,
+                    });
+                    const res = await fetch(
+                        `${API_URL}/admin/templates/${selectedTemplate.id}/steps/${selectedStep.id}/choices/${editingItem.choice_id}?${params}`,
+                        { method: 'PUT' }
+                    );
+                    if (res.ok) {
+                        await loadSteps(selectedTemplate.id);
+                        setEditingItem(null);
+                        setShowEditChoiceForm(false);
+                        showMsg('Réponse mise à jour');
+                    } else {
+                        const error = await res.json();
+                        showMsg(`Erreur: ${error.detail || res.statusText}`, 'error');
+                    }
+                } catch (err) {
+                    showMsg('Erreur lors de la mise à jour', 'error');
                 }
             };
 
@@ -450,7 +518,7 @@
                         description: templateForm.description,
                         is_active: true  // Make new templates active by default
                     });
-                    const res = await fetch(`https://api2.oriyaka.com/admin/templates?${params}`, {
+                    const res = await fetch(`${API_URL}/admin/templates?${params}`, {
                         method: 'POST'
                     });
                     if (res.ok) {
@@ -475,7 +543,7 @@
                         description: templateForm.description,
                         is_active: templateForm.is_active
                     });
-                    const res = await fetch(`https://api2.oriyaka.com/admin/templates/${editingItem.id}?${params}`, {
+                    const res = await fetch(`${API_URL}/admin/templates/${editingItem.id}?${params}`, {
                         method: 'PUT'
                     });
                     if (res.ok) {
@@ -492,7 +560,7 @@
             const deleteTemplate = async (id) => {
                 if (!confirm('Êtes-vous sûr ? Cette action supprimera aussi toutes les étapes et réponses.')) return;
                 try {
-                    const res = await fetch(`https://api2.oriyaka.com/admin/templates/${id}`, {
+                    const res = await fetch(`${API_URL}/admin/templates/${id}`, {
                         method: 'DELETE'
                     });
                     if (res.ok) {
@@ -523,7 +591,7 @@
                         is_required: stepForm.is_required,
                         can_upload_files: stepForm.can_upload_files
                     });
-                    const res = await fetch(`https://api2.oriyaka.com/admin/templates/${selectedTemplate.id}/steps?${params}`, {
+                    const res = await fetch(`${API_URL}/admin/templates/${selectedTemplate.id}/steps?${params}`, {
                         method: 'POST'
                     });
                     if (res.ok) {
@@ -544,7 +612,7 @@
                 if (!confirm('Êtes-vous sûr ? Cette action supprimera aussi toutes les réponses.')) return;
                 if (!selectedTemplate) return;
                 try {
-                    const res = await fetch(`https://api2.oriyaka.com/admin/templates/${selectedTemplate.id}/steps/${stepId}`, {
+                    const res = await fetch(`${API_URL}/admin/templates/${selectedTemplate.id}/steps/${stepId}`, {
                         method: 'DELETE'
                     });
                     if (res.ok) {
@@ -576,7 +644,7 @@
                         indicates_urgency: choiceForm.indicates_urgency
                     });
                     const res = await fetch(
-                        `https://api2.oriyaka.com/admin/templates/${selectedTemplate.id}/steps/${selectedStep.id}/choices?${params}`,
+                        `${API_URL}/admin/templates/${selectedTemplate.id}/steps/${selectedStep.id}/choices?${params}`,
                         {
                             method: 'POST'
                         }
@@ -600,7 +668,7 @@
                 if (!selectedTemplate || !selectedStep) return;
                 try {
                     const res = await fetch(
-                        `https://api2.oriyaka.com/admin/templates/${selectedTemplate.id}/steps/${selectedStep.id}/choices/${choiceId}`,
+                        `${API_URL}/admin/templates/${selectedTemplate.id}/steps/${selectedStep.id}/choices/${choiceId}`,
                         { method: 'DELETE' }
                     );
                     if (res.ok) {
@@ -721,6 +789,24 @@
                                                                     Voir
                                                                 </button>
                                                                 <button 
+                                                                    className="btn btn-secondary btn-small"
+                                                                    onClick={() => {
+                                                                        setEditingItem({ type: 'step', id: step.id });
+                                                                        setStepForm({
+                                                                            step_key: step.step_key,
+                                                                            question_text: step.question_text,
+                                                                            question_subtitle: step.question_subtitle || '',
+                                                                            step_order: step.step_order,
+                                                                            step_type: step.step_type,
+                                                                            is_required: step.is_required,
+                                                                            can_upload_files: step.can_upload_files,
+                                                                        });
+                                                                        setShowEditStepForm(true);
+                                                                    }}
+                                                                >
+                                                                    Éditer
+                                                                </button>
+                                                                <button 
                                                                     className="btn btn-danger btn-small"
                                                                     onClick={() => deleteStep(step.id)}
                                                                 >
@@ -757,12 +843,31 @@
                                                                                         {choice.indicates_urgency && ' • ⚠️ Urgent'}
                                                                                     </div>
                                                                                 </div>
+                                                                            <div className="item-actions">
+                                                                                <button 
+                                                                                    className="btn btn-secondary btn-small"
+                                                                                    onClick={() => {
+                                                                                        setEditingItem({ type: 'choice', choice_id: choice.choice_id });
+                                                                                        setChoiceForm({
+                                                                                            choice_id: choice.choice_id,
+                                                                                            choice_label: choice.choice_label,
+                                                                                            choice_sublabel: choice.choice_sublabel || '',
+                                                                                            choice_order: choice.choice_order,
+                                                                                            priority_level: choice.priority_level || 'normal',
+                                                                                            indicates_urgency: choice.indicates_urgency,
+                                                                                        });
+                                                                                        setShowEditChoiceForm(true);
+                                                                                    }}
+                                                                                >
+                                                                                    Éditer
+                                                                                </button>
                                                                                 <button 
                                                                                     className="btn btn-danger btn-small"
                                                                                     onClick={() => deleteChoice(choice.choice_id)}
                                                                                 >
                                                                                     ✕
                                                                                 </button>
+                                                                            </div>
                                                                             </div>
                                                                         </div>
                                                                     ))}
@@ -998,6 +1103,143 @@
                                     </button>
                                     <button className="btn btn-primary" onClick={createChoice}>
                                         Créer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showEditStepForm && editingItem && (
+                        <div className="modal">
+                            <div className="modal-content">
+                                <div className="modal-title">Éditer l'étape</div>
+                                <div className="form-group">
+                                    <label>Clé de l'étape</label>
+                                    <input 
+                                        type="text"
+                                        value={stepForm.step_key}
+                                        onChange={e => setStepForm({...stepForm, step_key: e.target.value})}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Question</label>
+                                    <input 
+                                        type="text"
+                                        value={stepForm.question_text}
+                                        onChange={e => setStepForm({...stepForm, question_text: e.target.value})}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Sous-titre (optionnel)</label>
+                                    <input 
+                                        type="text"
+                                        value={stepForm.question_subtitle}
+                                        onChange={e => setStepForm({...stepForm, question_subtitle: e.target.value})}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Ordre</label>
+                                    <input 
+                                        type="number"
+                                        value={stepForm.step_order}
+                                        onChange={e => setStepForm({...stepForm, step_order: parseInt(e.target.value)})}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Type</label>
+                                    <select 
+                                        value={stepForm.step_type}
+                                        onChange={e => setStepForm({...stepForm, step_type: e.target.value})}
+                                    >
+                                        <option value="choice">Choix multiple</option>
+                                        <option value="text">Texte libre</option>
+                                        <option value="upload">Fichier</option>
+                                        <option value="info">Information</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <div className="checkbox-group">
+                                        <input 
+                                            type="checkbox"
+                                            id="edit_can_upload"
+                                            checked={stepForm.can_upload_files}
+                                            onChange={e => setStepForm({...stepForm, can_upload_files: e.target.checked})}
+                                        />
+                                        <label htmlFor="edit_can_upload" style={{margin: 0}}>Permet les uploads</label>
+                                    </div>
+                                </div>
+                                <div className="modal-buttons">
+                                    <button className="btn" style={{background: '#ccc'}} onClick={() => {
+                                        setShowEditStepForm(false);
+                                        setEditingItem(null);
+                                    }}>
+                                        Annuler
+                                    </button>
+                                    <button className="btn btn-primary" onClick={updateStep}>
+                                        Mettre à jour
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showEditChoiceForm && editingItem && (
+                        <div className="modal">
+                            <div className="modal-content">
+                                <div className="modal-title">Éditer la réponse</div>
+                                <div className="form-group">
+                                    <label>ID de la réponse</label>
+                                    <input 
+                                        type="text"
+                                        value={choiceForm.choice_id}
+                                        disabled
+                                        style={{background: '#f5f5f5', color: '#888'}}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Label (affiché à l'utilisateur)</label>
+                                    <input 
+                                        type="text"
+                                        value={choiceForm.choice_label}
+                                        onChange={e => setChoiceForm({...choiceForm, choice_label: e.target.value})}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Sous-label (optionnel)</label>
+                                    <input 
+                                        type="text"
+                                        value={choiceForm.choice_sublabel}
+                                        onChange={e => setChoiceForm({...choiceForm, choice_sublabel: e.target.value})}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Ordre</label>
+                                    <input 
+                                        type="number"
+                                        value={choiceForm.choice_order}
+                                        onChange={e => setChoiceForm({...choiceForm, choice_order: parseInt(e.target.value)})}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <div className="checkbox-group">
+                                        <input 
+                                            type="checkbox"
+                                            id="edit_indicates_urgency"
+                                            checked={choiceForm.indicates_urgency}
+                                            onChange={e => setChoiceForm({...choiceForm, indicates_urgency: e.target.checked})}
+                                        />
+                                        <label htmlFor="edit_indicates_urgency" style={{margin: 0}}>Urgent</label>
+                                    </div>
+                                </div>
+                                <div className="modal-buttons">
+                                    <button className="btn" style={{background: '#ccc'}} onClick={() => {
+                                        setShowEditChoiceForm(false);
+                                        setEditingItem(null);
+                                    }}>
+                                        Annuler
+                                    </button>
+                                    <button className="btn btn-primary" onClick={updateChoice}>
+                                        Mettre à jour
                                     </button>
                                 </div>
                             </div>
