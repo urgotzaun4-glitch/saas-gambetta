@@ -40,8 +40,9 @@ input,select,textarea{font-family:'Readex Pro',sans-serif}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
 <script type="text/babel">
 const {useState,useEffect,useRef} = React;
-
-const API_URL = "http://localhost:8021";
+  
+/* ══ TEMP API ══ */
+const API_URL = "https://api2.oriyaka.com";
 
 /* ══ API FUNCTIONS ══ */
 const submitDiagnosticToAPI = async (diagnosticData) => {
@@ -603,11 +604,11 @@ const PreQuestionsScreen = ({existingClient, onNext}) => {
 };
 
 /* ══ SCREEN: QUESTION ══ */
-const QuestionStep = ({stepKey, onAnswer, tree=TREE}) => {
+const QuestionStep = ({stepKey, onAnswer}) => {
   const [sel, setSel] = useState(null);
   const [vis, setVis] = useState(false);
   useEffect(()=>{ setVis(false); setSel(null); setTimeout(()=>setVis(true),60); },[stepKey]);
-  const step = tree[stepKey];
+  const step = TREE[stepKey];
   if(!step || step.type!=="choice") return null;
   const handle = (choice) => { setSel(choice.id); setTimeout(()=>onAnswer(choice), 260); };
   return (
@@ -892,79 +893,12 @@ function App() {
   const [preInfos, setPreInfos] = useState({});
   const [infos, setInfos] = useState({});
   const [history, setHistory] = useState([]);
-  const [firstStepKey, setFirstStepKey] = useState("lumineux_symptome");
   const [currentStep, setCurrentStep] = useState("lumineux_symptome");
   const [diagnosticSummary, setDiagnosticSummary] = useState([]);
   const [isUrgent, setIsUrgent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [latestDiagnosticId, setLatestDiagnosticId] = useState(null);
-  
-  // Dynamic questions from API
-  const [dynamicTree, setDynamicTree] = useState(TREE);
-  const [questionsLoading, setQuestionsLoading] = useState(false);
-
-  // Fetch questions from API on mount
-  React.useEffect(() => {
-    const fetchQuestions = async () => {
-      setQuestionsLoading(true);
-      try {
-        const response = await fetch('http://localhost:8021/diagnostic-questions');
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.detail || 'Failed to fetch questions');
-        }
-        const data = await response.json();
-        console.log('API Response:', data);
-        
-        // Transform API response to TREE format
-        const transformedTree = {};
-        if (data.questions && Object.keys(data.questions).length > 0) {
-          for (const [stepKey, question] of Object.entries(data.questions)) {
-            transformedTree[stepKey] = {
-              id: stepKey,
-              question: question.question,
-              subtitle: question.subtitle,
-              type: question.type,
-              required: question.required,
-              step_order: question.step_order,
-              choices: (question.choices || []).map((choice) => ({
-                id: choice.id,
-                label: choice.label,
-                sublabel: choice.sublabel || '',
-                // Use icon_type from DB if present, otherwise derive from choice id
-                icon: choice.icon_type || choice.id.substring(0, 3),
-                urgent: choice.urgency || false,
-                // next is server-computed by inverting depends_on relationships
-                next: choice.next || null
-              }))
-            };
-          }
-          setDynamicTree(transformedTree);
-          // Derive the first step: lowest step_order among steps with no depends_on
-          const firstStep = Object.entries(data.questions)
-            .filter(([, q]) => !q.depends_on)
-            .sort(([, a], [, b]) => (a.step_order || 0) - (b.step_order || 0))[0];
-          if (firstStep) { setCurrentStep(firstStep[0]); setFirstStepKey(firstStep[0]); }
-          console.log('Questions loaded successfully from API:', Object.keys(transformedTree).length, 'steps. First step:', firstStep ? firstStep[0] : 'unchanged');
-        } else {
-          console.log('No questions in API response, using defaults');
-          setDynamicTree(TREE);
-        }
-      } catch (error) {
-        console.error('Error fetching questions from API:', error.message);
-        // Keep using the hardcoded TREE as fallback
-        setDynamicTree(TREE);
-      } finally {
-        setQuestionsLoading(false);
-      }
-    };
-
-    fetchQuestions();
-  }, []);
-
-  // Use dynamic tree (which defaults to TREE if API fails)
-  const currentTree = dynamicTree;
 
   const getProgress = () => {
     if(screen==="landing") return 0;
@@ -985,7 +919,7 @@ function App() {
   }[screen]||"");
 
   const handleAnswer = (choice) => {
-    const step = currentTree[currentStep]; if(!step) return;
+    const step = TREE[currentStep]; if(!step) return;
     setDiagnosticSummary(p=>[...p,{question:step.question,answer:choice.label,icon:choice.icon}]);
     setHistory(p=>[...p,{stepKey:currentStep,choiceId:choice.id}]);
     if(choice.urgent) setIsUrgent(true);
@@ -1003,21 +937,24 @@ function App() {
         setCurrentStep(l);
         setScreen("diagnostic");
       } else {
-        setCurrentStep(firstStepKey);
+        setCurrentStep("lumineux_symptome");
         setScreen("preQuestions");
       }
       return;
     }
     if(screen==="diagnostic"){
-      if(history.length===0){ setCurrentStep(firstStepKey); setScreen("preQuestions"); }
+      if(history.length===0){ setCurrentStep("lumineux_symptome"); setScreen("preQuestions"); }
       else{ const prev=history[history.length-1].stepKey; setHistory(h=>h.slice(0,-1)); setDiagnosticSummary(s=>s.slice(0,-1)); setCurrentStep(prev); }
       return;
     }
-    if(screen==="preQuestions"){ setScreen("clientType"); return; }
-    if(screen==="clientType"){ setScreen("landing"); return; }
+    if(screen==="preQuestions"){ setScreen("landing"); return; }
   };
 
-  if(screen==="landing") return <Landing onStart={()=>setScreen("clientType")} />;
+if(screen==="landing") return <Landing onStart={()=>{
+        setExistingClient(false);
+        setPreInfos({});
+        setScreen("preQuestions");
+      }} />;
 
   const showBack = screen !== "confirm";
   const showProgress = screen !== "confirm";
@@ -1055,27 +992,19 @@ function App() {
             >{IC.arrowL} Retour</button>
           )}
 
-          {screen==="clientType" && (
-            <ClientTypeScreen onSelect={(v)=>{
-              setExistingClient(v);
-              setPreInfos({});
-              setScreen("preQuestions");
-            }} />
-          )}
-
           {screen==="preQuestions" && (
             <PreQuestionsScreen
               existingClient={existingClient}
               onNext={(data)=>{
                 setPreInfos(data);
-                setCurrentStep(firstStepKey);
+                setCurrentStep("lumineux_symptome");
                 setScreen("diagnostic");
               }}
             />
           )}
 
           {screen==="diagnostic" && (
-            <QuestionStep stepKey={currentStep} onAnswer={handleAnswer} tree={currentTree} />
+            <QuestionStep stepKey={currentStep} onAnswer={handleAnswer} />
           )}
 
           {screen==="upload" && (
